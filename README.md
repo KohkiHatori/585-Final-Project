@@ -2,7 +2,6 @@
 # 🕶️ Real-Time Funny Mask Overlay (CS585 Final Project)
 
 **Team Members:** Aleksei Glebov, Brooks Wimer, Bora Aydemir, Kohki Hatori
-**Course:** CS585 – Computer Vision
 
 ## 📌 Project Overview
 
