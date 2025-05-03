@@ -69,83 +69,83 @@ def detect_faces_dlib(img_gray, hog_face_detector):
         faces.append((x, y, w, h))
     return faces
 
+if __name__ == "__main__":
+    # --- SETTINGS ---
+    OUTPUT_CROPPED_FACES = True   # Set True to save cropped faces
+    OUTPUT_DIR = "detected_faces"
+    CASCADE_PATH = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    DETECTOR = "haar"  # or "dlib"
 
-# --- SETTINGS ---
-OUTPUT_CROPPED_FACES = True   # Set True to save cropped faces
-OUTPUT_DIR = "detected_faces"
-CASCADE_PATH = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-DETECTOR = "haar"  # or "dlib"
+    # --- PREPARE ---
+    if OUTPUT_CROPPED_FACES and not os.path.exists(OUTPUT_DIR):
+        os.makedirs(OUTPUT_DIR)
 
-# --- PREPARE ---
-if OUTPUT_CROPPED_FACES and not os.path.exists(OUTPUT_DIR):
-    os.makedirs(OUTPUT_DIR)
+    # Load detectors
+    face_cascade = cv2.CascadeClassifier(CASCADE_PATH)
+    hog_face_detector = dlib.get_frontal_face_detector()
 
-# Load detectors
-face_cascade = cv2.CascadeClassifier(CASCADE_PATH)
-hog_face_detector = dlib.get_frontal_face_detector()
+    # Load LFW dataset
+    lfw_dataset = fetch_lfw_people(min_faces_per_person=5, resize=1.0)
+    images = lfw_dataset.images
+    image_shape = images[0].shape
 
-# Load LFW dataset
-lfw_dataset = fetch_lfw_people(min_faces_per_person=5, resize=1.0)
-images = lfw_dataset.images
-image_shape = images[0].shape
+    # Placeholder for bounding boxes
+    detection_results = []
 
-# Placeholder for bounding boxes
-detection_results = []
+    # --- PROCESS IMAGES ---
+    print("Starting face detection...")
+    total_boxes_before = 0
+    total_boxes_after = 0
+    total_boxes_removed = 0
+    for idx, img in enumerate(tqdm(images)):
+        img_uint8 = (img * 255).astype(np.uint8)
+        img_colored = cv2.cvtColor(img_uint8, cv2.COLOR_GRAY2BGR)
 
-# --- PROCESS IMAGES ---
-print("Starting face detection...")
-total_boxes_before = 0
-total_boxes_after = 0
-total_boxes_removed = 0
-for idx, img in enumerate(tqdm(images)):
-    img_uint8 = (img * 255).astype(np.uint8)
-    img_colored = cv2.cvtColor(img_uint8, cv2.COLOR_GRAY2BGR)
+        # Choose detection method
+        if DETECTOR == "haar":
+            faces = detect_faces_haar(img_uint8, face_cascade)
+        elif DETECTOR == "dlib":
+            faces = detect_faces_dlib(img_uint8, hog_face_detector)
+        else:
+            raise ValueError("Invalid DETECTOR setting!")
 
-    # Choose detection method
-    if DETECTOR == "haar":
-        faces = detect_faces_haar(img_uint8, face_cascade)
-    elif DETECTOR == "dlib":
-        faces = detect_faces_dlib(img_uint8, hog_face_detector)
-    else:
-        raise ValueError("Invalid DETECTOR setting!")
+        faces, kept, removed = non_max_suppression(faces, overlapThresh=0.3)
 
-    faces, kept, removed = non_max_suppression(faces, overlapThresh=0.3)
+        total_boxes_before += kept + removed
+        total_boxes_after += kept
+        total_boxes_removed += removed
 
-    total_boxes_before += kept + removed
-    total_boxes_after += kept
-    total_boxes_removed += removed
+        for i, (x, y, w, h) in enumerate(faces):
+            padding = 0.1  # 10% padding
+            # Expand the bounding box
+            x = max(0, int(x - w * padding))
+            y = max(0, int(y - h * padding))
+            w = int(w * (1 + 2 * padding))
+            h = int(h * (1 + 2 * padding))
 
-    for i, (x, y, w, h) in enumerate(faces):
-        padding = 0.1  # 10% padding
-        # Expand the bounding box
-        x = max(0, int(x - w * padding))
-        y = max(0, int(y - h * padding))
-        w = int(w * (1 + 2 * padding))
-        h = int(h * (1 + 2 * padding))
+            # Make sure we don't go outside image boundaries
+            x2 = min(x + w, img_colored.shape[1])
+            y2 = min(y + h, img_colored.shape[0])
 
-        # Make sure we don't go outside image boundaries
-        x2 = min(x + w, img_colored.shape[1])
-        y2 = min(y + h, img_colored.shape[0])
+            # Save bounding box info
+            detection_results.append({
+                "image_id": idx,
+                "bbox": {"x": int(x), "y": int(y), "w": int(x2 - x), "h": int(y2 - y)}
+            })
 
-        # Save bounding box info
-        detection_results.append({
-            "image_id": idx,
-            "bbox": {"x": int(x), "y": int(y), "w": int(x2 - x), "h": int(y2 - y)}
-        })
+            if OUTPUT_CROPPED_FACES:
+                face_crop = img_colored[y:y+h, x:x+w]
+                filename = os.path.join(OUTPUT_DIR, f"face_{idx}_{i}.jpg")
+                cv2.imwrite(filename, face_crop)
 
-        if OUTPUT_CROPPED_FACES:
-            face_crop = img_colored[y:y+h, x:x+w]
-            filename = os.path.join(OUTPUT_DIR, f"face_{idx}_{i}.jpg")
-            cv2.imwrite(filename, face_crop)
+    print(f"\nProcessed {len(images)} images.")
+    print(f"Detected {len(detection_results)} faces total.")
+    print(f"[NMS Summary] Total boxes removed by NMS: {total_boxes_removed}")
 
-print(f"\nProcessed {len(images)} images.")
-print(f"Detected {len(detection_results)} faces total.")
-print(f"[NMS Summary] Total boxes removed by NMS: {total_boxes_removed}")
+    # OPTIONAL: Save bounding boxes to a file
+    with open("bounding_boxes.json", "w") as f:
+        json.dump(detection_results, f, indent=4)
 
-# OPTIONAL: Save bounding boxes to a file
-with open("bounding_boxes.json", "w") as f:
-    json.dump(detection_results, f, indent=4)
+    print("\nBounding boxes saved to bounding_boxes.json")
 
-print("\nBounding boxes saved to bounding_boxes.json")
-
-# --- DONE ---
+    # --- DONE ---
