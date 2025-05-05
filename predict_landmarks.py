@@ -7,7 +7,7 @@ from face import detect_faces_haar
 
 # --- CONFIG ---
 MODEL_PATH = "landmark_model.pt"
-IMAGE_PATH = "test_photos/Dimas.jpg"
+IMAGE_PATH = "test_photos/Ira.jpg"
 IMAGE_SIZE = 96
 CASCADE_PATH = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 
@@ -59,6 +59,7 @@ with torch.no_grad():
 
 output *= [w, h]
 output += [x, y]
+
 
 # --- DRAW ---
 for (px, py) in output.astype(np.int32):

@@ -29,12 +29,14 @@ h2 {
     width: 100%;
     max-width: 640px;
     margin: 0 auto 20px;
+    transform: scaleX(-1);
 }
 
 #videoElement {
     width: 100%;
     background-color: #000;
     border-radius: 8px;
+    transform: none !important; /* ensure video itself stays unflipped */
 }
 
 #outputCanvas {
@@ -112,4 +114,8 @@ button:disabled {
 .mask-option span {
     font-size: 14px;
     color: #333;
-} 
+}
+
+#videoElement {
+    transform: scaleX(-1);
+}

@@ -94,15 +94,30 @@ class MaskHandler {
 
             console.log(`Drawing mask at (${x}, ${y}) with size ${maskWidth}x${maskHeight}`);
 
+            const centerX = (leftEye.x + rightEye.x) / 2 * this.canvasElement.width;
+            const centerY = (leftEye.y + rightEye.y) / 2 * this.canvasElement.height;
+
+            const dx = rightEye.x - leftEye.x;
+            const dy = rightEye.y - leftEye.y;
+            const angle = Math.atan2(dy, dx);
             // Draw mask
             this.canvasCtx.save();
             this.canvasCtx.globalCompositeOperation = 'source-over';
+            // this.canvasCtx.drawImage(
+            //     maskImage,
+            //     x,
+            //     y,
+            //     maskWidth,
+            //     maskHeight
+            // );
+            this.canvasCtx.translate(centerX, centerY);
+            this.canvasCtx.rotate(angle);
             this.canvasCtx.drawImage(
-                maskImage,
-                x,
-                y,
-                maskWidth,
-                maskHeight
+              maskImage,
+              -maskWidth / 2,
+              -maskHeight / 2,
+              maskWidth,
+              maskHeight
             );
             this.canvasCtx.restore();
         } else {
