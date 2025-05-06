@@ -61,6 +61,15 @@ def process_inline():
     if "video" not in request.files:
         return jsonify({"error": "No video field in form"}), 400
 
+    # 0) Determine which mask to use (defaults to cat.png)
+    mask_name = request.form.get("mask", "cat")
+    # Sanitize input: only allow filenames without path separators and alphanumerics/underscore
+    if not mask_name.isalnum():
+        return jsonify({"error": "Invalid mask name"}), 400
+    mask_path = BASE_DIR / "masks" / f"{mask_name}.png"
+    if not mask_path.exists():
+        return jsonify({"error": "Mask not found"}), 400
+
     # 1) Persist the incoming video to a *temp* file.
     src_file = request.files["video"]
     with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp_in:
@@ -94,7 +103,7 @@ def process_inline():
         "python",
         str(BASE_DIR / "backend" / "overlay_processor.py"),
         interm_mp4,
-        str(MASK_PATH),
+        str(mask_path),
         output_path,
     ]
     try:
