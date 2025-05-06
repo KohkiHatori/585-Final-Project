@@ -6,10 +6,11 @@ class MaskHandler {
         this.maskImages = {};
         this.loadMasks();
         this.disable = disable;
-        this.verticalOffset = 0.1; // 1.0 pushes the mask one full maskHeight above the nose; tweak as needed
-        this.scaleMultiplier = 2.3;  // tweak >1 to enlarge or shrink mask uniformly
+        this.verticalOffset = 0.1; // Adjust this to move mask up/down relative to face
+        this.scaleMultiplier = 2.3;  // Increase for larger masks, decrease for smaller
     }
 
+    // Pre-load all mask images at startup
     async loadMasks() {
         const maskTypes = ['bear', 'cat', 'custom1', 'custom2'];
         for (const type of maskTypes) {
@@ -24,11 +25,13 @@ class MaskHandler {
         }
     }
 
+    // Change currently active mask
     setMask(maskType) {
         this.currentMask = maskType;
         console.log(`Mask set to: ${maskType}`);
     }
 
+    // Core function - called on each frame with new landmark positions
     updateMaskPosition(landmarks) {
         if (this.disable) return;
         if (!this.currentMask || !landmarks || !this.maskImages[this.currentMask]) {
@@ -42,7 +45,7 @@ class MaskHandler {
 
         const maskImage = this.maskImages[this.currentMask];
         
-        // Get key facial landmarks
+        // Key points we need for positioning
         const leftEye = landmarks[33];  // Left eye landmark
         const rightEye = landmarks[263]; // Right eye landmark
         const nose = landmarks[1];      // Nose tip landmark
@@ -52,12 +55,13 @@ class MaskHandler {
         const forehead = landmarks[10]; // Forehead landmark
 
         if (leftEye && rightEye && nose && chin && leftEar && rightEar && forehead) {
-            // Calculate face width and height
+            // Get eye distance for scaling
             const eyeDistance = Math.sqrt(
                 Math.pow(rightEye.x - leftEye.x, 2) + 
                 Math.pow(rightEye.y - leftEye.y, 2)
             ) * this.canvasElement.width;
 
+            // Get face height for reference
             const faceHeight = Math.sqrt(
                 Math.pow(forehead.x - chin.x, 2) + 
                 Math.pow(forehead.y - chin.y, 2)
@@ -82,39 +86,27 @@ class MaskHandler {
                 faceHeight
             });
 
-            // Scale mask to fit face width
-            const scale = (eyeDistance * this.scaleMultiplier) / maskImage.width; // configurable scale
+            // Scale mask proportionally to face size
+            const scale = (eyeDistance * this.scaleMultiplier) / maskImage.width;
             const maskWidth = maskImage.width * scale;
             const maskHeight = maskImage.height * scale;
 
-            // Position mask
-            // Center horizontally on the face
-            const x = (leftEye.x + rightEye.x) / 2 * this.canvasElement.width - maskWidth / 2;
-            
-            // Position vertically to align with top of head
-            // Move the mask up significantly by increasing the offset
-            const y = nose.y * this.canvasElement.height - maskHeight * this.verticalOffset;
-
-            console.log(`Drawing mask at (${x}, ${y}) with size ${maskWidth}x${maskHeight}`);
-
+            // Find center point between eyes
             const centerX = (leftEye.x + rightEye.x) / 2 * this.canvasElement.width;
             let centerY = (leftEye.y + rightEye.y) / 2 * this.canvasElement.height;
-            // Apply vertical offset so the entire mask shifts up/down
+            // Adjust vertical position 
             centerY -= maskHeight * this.verticalOffset;
 
+            // Get head tilt angle from eye positions
             const dx = rightEye.x - leftEye.x;
             const dy = rightEye.y - leftEye.y;
             const angle = Math.atan2(dy, dx);
-            // Draw mask
+            
+            // Draw mask with rotation
             this.canvasCtx.save();
             this.canvasCtx.globalCompositeOperation = 'source-over';
-            // this.canvasCtx.drawImage(
-            //     maskImage,
-            //     x,
-            //     y,
-            //     maskWidth,
-            //     maskHeight
-            // );
+            
+            // Translate to center point, rotate, then draw
             this.canvasCtx.translate(centerX, centerY);
             this.canvasCtx.rotate(angle);
             this.canvasCtx.drawImage(

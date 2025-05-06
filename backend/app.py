@@ -4,13 +4,13 @@ import subprocess, uuid, pathlib
 from flask_cors import CORS
 import tempfile, os
 
-# Directories for uploads and processed videos (relative to backend folder)
+# Set up file paths - need to handle uploads & processed videos
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent  # project root
 UPLOAD_DIR = BASE_DIR / "uploads"
 PROCESSED_DIR = BASE_DIR / "processed"
 MASK_PATH = BASE_DIR / "masks" / "cat.png"  # Default mask
 
-# Ensure directories exist
+# Make sure dirs exist
 UPLOAD_DIR.mkdir(exist_ok=True)
 PROCESSED_DIR.mkdir(exist_ok=True)
 
@@ -25,16 +25,16 @@ def upload():
 
     video_file = request.files["video"]
 
-    # Save uploaded file with a unique name
+    # Use UUIDs for filenames to avoid collisions
     in_name = secure_filename(f"{uuid.uuid4()}.webm")
     input_path = UPLOAD_DIR / in_name
     video_file.save(input_path)
 
-    # Prepare output path
+    # Output keeps same UUID but adds _mask and changes ext
     out_name = input_path.stem + "_mask.mp4"
     output_path = PROCESSED_DIR / out_name
 
-    # Call overlay processor as subprocess to avoid loading heavy libs in web thread
+    # Run processor in a separate process to avoid memory issues
     cmd = [
         "python",
         str(BASE_DIR / "backend" / "overlay_processor.py"),
@@ -61,22 +61,22 @@ def process_inline():
     if "video" not in request.files:
         return jsonify({"error": "No video field in form"}), 400
 
-    # 0) Determine which mask to use (defaults to cat.png)
+    # Get mask name from form data, sanitize input
     mask_name = request.form.get("mask", "cat")
-    # Sanitize input: only allow filenames without path separators and alphanumerics/underscore
+    # Only allow simple filenames (no directory traversal)
     if not mask_name.isalnum():
         return jsonify({"error": "Invalid mask name"}), 400
     mask_path = BASE_DIR / "masks" / f"{mask_name}.png"
     if not mask_path.exists():
         return jsonify({"error": "Mask not found"}), 400
 
-    # 1) Persist the incoming video to a *temp* file.
+    # Save uploaded webm to temp file
     src_file = request.files["video"]
     with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp_in:
         src_file.save(tmp_in)
         input_path = tmp_in.name
 
-    # 2) Convert the WebM to an intermediate MP4 that OpenCV can read.
+    # WebM → MP4 conversion (OpenCV needs MP4)
     interm_fd, interm_mp4 = tempfile.mkstemp(suffix=".mp4")
     os.close(interm_fd)
     try:
@@ -94,11 +94,11 @@ def process_inline():
         os.unlink(interm_mp4)
         return jsonify({"error": "Failed to convert WebM", "details": e.stderr.decode()}), 500
 
-    # 3) Prepare a temporary destination for the processed (masked) video.
+    # Create temp file for processed output
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_out:
         output_path = tmp_out.name
 
-    # 4) Invoke the existing overlay processor CLI on the intermediate MP4.
+    # Call overlay processor to apply mask
     cmd = [
         "python",
         str(BASE_DIR / "backend" / "overlay_processor.py"),
@@ -109,23 +109,22 @@ def process_inline():
     try:
         subprocess.run(cmd, check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
-        # Clean up temp files before returning the error.
+        # Clean up our mess
         os.unlink(input_path)
         os.unlink(interm_mp4)
         os.unlink(output_path)
         return jsonify({"error": "Processing failed", "details": e.stderr.decode()}), 500
 
-    # 4) Transcode to a standards-compliant H.264 MP4 using ffmpeg. Browsers
-    # are picky about codecs. This guarantees compatibility if ffmpeg is
-    # installed.
+    # Final ffmpeg pass for browser-compatible output
+    # Web browsers are super picky about MP4 compatibility
     fd, final_mp4 = tempfile.mkstemp(suffix=".mp4")
-    os.close(fd)  # Close immediately so ffmpeg can write on Windows
+    os.close(fd)  # Close fd so ffmpeg can write on Windows
     try:
         subprocess.run([
             "ffmpeg",
-            "-y",  # overwrite existing
+            "-y",  # overwrite if exists
             "-i", str(output_path),
-            "-vf", "fps=30",  # force constant fps & generate proper PTS/ DTS
+            "-vf", "fps=30",  # ensure constant fps
             "-c:v", "libx264",
             "-pix_fmt", "yuv420p",
             "-preset", "veryfast",
@@ -133,24 +132,23 @@ def process_inline():
             final_mp4,
         ], check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
-        # If ffmpeg is missing or fails, fall back to the raw file.
+        # Fallback to unprocessed file if ffmpeg fails
         print("[WARN] ffmpeg transcode failed, serving raw output", e.stderr.decode())
         final_mp4 = output_path
 
-    # Read the processed (and transcoded) video into memory.
+    # Load file into memory
     with open(final_mp4, "rb") as fh:
         video_bytes = fh.read()
 
-    # Cleanup
+    # Clean up all temp files
     os.unlink(input_path)
     os.unlink(interm_mp4)
     os.unlink(output_path)
     if os.path.exists(final_mp4) and final_mp4 != output_path:
         os.unlink(final_mp4)
 
-    # 5) Stream the bytes back to the client.
+    # Send video back to browser
     resp = Response(video_bytes, mimetype="video/mp4")
-    # Allow browsers to treat this like a regular MP4 file rather than forcing download
     resp.headers["Content-Disposition"] = "inline; filename=processed.mp4"
     print("[DEBUG] returning", len(video_bytes), "bytes from process-inline")
     return resp

@@ -1,6 +1,53 @@
 # Face-Filter Web App  
 Bring Snapchat-style AR masks to any modern browser
 
+
+## Prerequisites
+
+- Python 3.6 or higher
+- PyTorch ecosystem (automatically installed via requirements.txt)
+- OpenCV (automatically installed via requirements.txt)
+- Flask for the backend API (automatically installed via requirements.txt)
+- A modern web browser (Chrome recommended)
+- A CORS browser extension (e.g., "CORS Unblock" for Chrome) to allow backend uploads to work
+- FFmpeg (required for video processing)
+
+### FFmpeg Installation
+
+FFmpeg is essential for this application as it handles two critical video processing tasks:
+1. Converting WebM videos from the browser to MP4 format that OpenCV can reliably process
+2. Ensuring the processed output video uses standardized codecs and formats that play consistently across all browsers
+
+#### Windows
+1. Download FFmpeg from the official website: https://ffmpeg.org/download.html
+2. Extract the downloaded zip file to a location of your choice
+3. Add the `bin` folder to your system's PATH environment variable:
+   - Search for "Environment Variables" in Windows Settings
+   - Under System Variables, select "Path" and click "Edit"
+   - Click "New" and add the full path to the ffmpeg bin folder
+   - Click "OK" to save changes
+4. Verify installation by opening a new Command Prompt and running:
+   ```
+   ffmpeg -version
+   ```
+
+#### macOS
+Using Homebrew:
+```
+brew install ffmpeg
+```
+
+#### Linux (Ubuntu/Debian)
+```
+sudo apt update
+sudo apt install ffmpeg
+```
+
+#### Linux (Fedora)
+```
+sudo dnf install ffmpeg
+```
+
 ---
 
 ## What It Does
@@ -25,11 +72,23 @@ Bring Snapchat-style AR masks to any modern browser
 │  maskHandler.js      # Draws PNG masks based on landmarks
 │  recorder.js         # Handles recording, spinner, upload, playback
 │  masks/              # PNG assets (cat.png, bear.png, …)
+│  face.py             # Face detection and processing utilities
+│  landmark_model.py   # PyTorch model definition for facial landmarks
+│  faceLandmarkPredictor.py # Interface for landmark prediction
+│  landmarks_detection.py # Landmark detection implementation
+│  overlay.py          # Core mask overlay implementation
+│  landmark_model.pt   # Pre-trained landmark detection model
+│  predict_landmarks.py # Script for landmark prediction on images
+│  train_landmarks.py  # Training script for landmark model
+│  augment_rotation.py # Data augmentation for training
 │
 ├─ backend/
 │   ├─ app.py              # Flask server, CORS, endpoints
-│   └─ overlay_processor.py# Heavy video post-processing
+│   ├─ overlay_processor.py # Heavy video post-processing 
+│   └─ requirements.txt    # Python dependencies
 │
+├─ uploads/            # Temporary storage for uploaded videos
+├─ processed/          # Storage for processed videos
 └─ README.md         
 ```
 
@@ -40,22 +99,28 @@ Bring Snapchat-style AR masks to any modern browser
 1. Clone & enter the project
 ```bash
 git clone https://github.com/KohkiHatori/585-Final-Project.git
-cd face-filter-app
+cd face-filter-app  
 ```
-2. Start the backend (Python 3.9+)
+
+2. Create a Python virtual environment and install dependencies
 ```bash
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt                     # Flask, opencv-python, mediapipe, etc.
-python backend/app.py                               # runs on http://localhost:5000
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r backend/requirements.txt
 ```
-3. Serve the static frontend (any simple server)
+
+3. Start the backend server
+```bash
+python backend/app.py  # runs on http://localhost:5000
+```
+
+4. Serve the static frontend (any simple server)
 ```bash
 # from repo root
 python -m http.server 8080  # or use Live Server extension, nginx, etc.
 ```
-4. Visit `http://localhost:8080` in Chrome/Edge/Firefox, allow camera access, and play
 
-
+5. Visit `http://localhost:8080` in Chrome/Edge/Firefox, allow camera access, and play
 
 ---
 
@@ -98,11 +163,25 @@ WebCam → getUserMedia() → <video> → MediaPipe Face Mesh (WebAssembly) → 
 ```
 3. No code change needed on backend; it trusts the file exists.
 
+## Troubleshooting
 
+- **Camera Issues**: If the camera doesn't start, ensure you've granted permission in your browser settings.
+- **Backend Connection**: If you can't connect to the backend, ensure:
+  - The Flask server is running (`python backend/app.py`)
+  - Your CORS browser extension is enabled
+  - You're using the correct port (5000 for backend, typically 8080 for frontend)
+- **Video Processing Errors**: If video processing fails:
+  - Verify FFmpeg is installed correctly (run `ffmpeg -version` in terminal)
+  - Check Python dependencies are installed (`pip list` should show opencv-python-headless, torch, etc.)
+  - Ensure all directories (uploads/, processed/) exist and are writable
+- **Mask Not Showing**: If the AR mask isn't displaying:
+  - Check browser console for JavaScript errors
+  - Ensure your face is well-lit and clearly visible to the camera
+  - Try a different mask to rule out issues with a specific mask file
+- **Performance Issues**: If the app runs slowly:
+  - Close other browser tabs and applications
+  - Try a different browser (Chrome generally offers best performance)
+  - Check that your device meets minimum requirements for webcam processing
 
-
-
-
-
-
+If issues persist, check the browser console (F12) and server logs for detailed error messages.
 
