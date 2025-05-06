@@ -20,13 +20,12 @@
             <video id="videoElement" autoplay playsinline></video>
             <canvas id="outputCanvas"></canvas>
         </div>
-        <div class="controls">
+        <!-- Main camera controls (top) -->
+        <div class="controls" id="cameraControls">
             <button id="startButton">Start Camera</button>
             <button id="stopButton" disabled>Stop Camera</button>
-            
-            <button id="recStart" disabled>Start Recording</button>
-            <button id="recStop" disabled>Stop & Upload</button>
         </div>
+
         <div class="mask-selection">
             <h2>Select an Animal Mask</h2>
             <div class="mask-grid">
@@ -48,13 +47,23 @@
                 </div>
             </div>
         </div>
-        <h3>Processed video:</h3>
-        <video id="processedVideo" controls style="max-width: 100%;"></video>
+
+        <!-- Recording preview (second frame) -->
+        <div class="video-container" id="recordContainer">
+            <video id="recordVideo" autoplay playsinline muted></video>
+            <div id="uploadSpinner" class="spinner hidden"></div>
+        </div>
+        <div class="controls" id="recordControls">
+            <button id="recStart" disabled>Start Recording</button>
+            <button id="recStop" disabled>Stop & Upload</button>
+        </div>
+
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const videoElement = document.getElementById('videoElement');
+            const recordVideo = document.getElementById('recordVideo');
             const canvasElement = document.getElementById('outputCanvas');
             const startButton = document.getElementById('startButton');
             const stopButton = document.getElementById('stopButton');
@@ -62,6 +71,10 @@
             const cameraHandler = new CameraHandler(videoElement, startButton, stopButton);
             const faceDetector = new FaceDetector(videoElement, canvasElement);
             const maskHandler = new MaskHandler(canvasElement);
+            const spinner = document.getElementById('uploadSpinner');
+
+            // Expose global so recorder.js can access the current choice.
+            window.currentMaskType = null;
 
             // Connect face detector to mask handler
             faceDetector.onFaceDetected = (landmarks) => {
@@ -71,6 +84,8 @@
             startButton.addEventListener('click', async () => {
                 const success = await cameraHandler.startCamera();
                 if (success) {
+                    // Mirror the same stream into the recording preview element
+                    recordVideo.srcObject = videoElement.srcObject;
                     await faceDetector.initialize();
                     faceDetector.start();
                 }
@@ -79,6 +94,7 @@
             stopButton.addEventListener('click', () => {
                 cameraHandler.stopCamera();
                 faceDetector.stop();
+                recordVideo.srcObject = null;
             });
 
             // Handle mask selection
@@ -86,6 +102,7 @@
                 option.addEventListener('click', () => {
                     const maskType = option.dataset.mask;
                     maskHandler.setMask(maskType);
+                    window.currentMaskType = maskType; // remember selection for upload
                 });
             });
         });

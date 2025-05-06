@@ -1,10 +1,13 @@
 class MaskHandler {
-    constructor(canvasElement) {
+    constructor(canvasElement, disable = false) {
         this.canvasElement = canvasElement;
         this.canvasCtx = canvasElement.getContext('2d');
         this.currentMask = null;
         this.maskImages = {};
         this.loadMasks();
+        this.disable = disable;
+        this.verticalOffset = 0.1; // 1.0 pushes the mask one full maskHeight above the nose; tweak as needed
+        this.scaleMultiplier = 2.3;  // tweak >1 to enlarge or shrink mask uniformly
     }
 
     async loadMasks() {
@@ -27,6 +30,7 @@ class MaskHandler {
     }
 
     updateMaskPosition(landmarks) {
+        if (this.disable) return;
         if (!this.currentMask || !landmarks || !this.maskImages[this.currentMask]) {
             console.log('Missing required data:', {
                 currentMask: this.currentMask,
@@ -79,7 +83,7 @@ class MaskHandler {
             });
 
             // Scale mask to fit face width
-            const scale = (eyeDistance * 2.0) / maskImage.width; // Increased scale for better coverage
+            const scale = (eyeDistance * this.scaleMultiplier) / maskImage.width; // configurable scale
             const maskWidth = maskImage.width * scale;
             const maskHeight = maskImage.height * scale;
 
@@ -89,13 +93,14 @@ class MaskHandler {
             
             // Position vertically to align with top of head
             // Move the mask up significantly by increasing the offset
-            const verticalOffset = 0.8; // Larger offset to move mask up
-            const y = nose.y * this.canvasElement.height - maskHeight * verticalOffset;
+            const y = nose.y * this.canvasElement.height - maskHeight * this.verticalOffset;
 
             console.log(`Drawing mask at (${x}, ${y}) with size ${maskWidth}x${maskHeight}`);
 
             const centerX = (leftEye.x + rightEye.x) / 2 * this.canvasElement.width;
-            const centerY = (leftEye.y + rightEye.y) / 2 * this.canvasElement.height;
+            let centerY = (leftEye.y + rightEye.y) / 2 * this.canvasElement.height;
+            // Apply vertical offset so the entire mask shifts up/down
+            centerY -= maskHeight * this.verticalOffset;
 
             const dx = rightEye.x - leftEye.x;
             const dy = rightEye.y - leftEye.y;

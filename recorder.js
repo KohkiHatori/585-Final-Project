@@ -1,8 +1,8 @@
-const videoElement = document.getElementById("videoElement");
+const recordVideoEl = document.getElementById("recordVideo");
 const startButton = document.getElementById("startButton");
 const recStart = document.getElementById("recStart");
 const recStop = document.getElementById("recStop");
-const processedVideo = document.getElementById("processedVideo");
+const spinner = document.getElementById("uploadSpinner");
 
 let mediaRecorder;
 let recordedChunks = [];
@@ -15,7 +15,7 @@ startButton.addEventListener("click", () => {
 
 recStart.addEventListener("click", () => {
   recordedChunks = [];
-  mediaRecorder = new MediaRecorder(videoElement.srcObject, {
+  mediaRecorder = new MediaRecorder(recordVideoEl.srcObject, {
     mimeType: "video/webm;codecs=vp8",
   });
 
@@ -28,12 +28,14 @@ recStart.addEventListener("click", () => {
   mediaRecorder.start();
   recStart.disabled = true;
   recStop.disabled = false;
+  spinner.classList.add("hidden");
 });
 
 recStop.addEventListener("click", () => {
   mediaRecorder.stop();
   recStop.disabled = true;
   recStart.disabled = false;
+  spinner.classList.remove("hidden");
 });
 
 // After recording stops, upload the video
@@ -41,6 +43,9 @@ function uploadRecording() {
   const blob = new Blob(recordedChunks, { type: "video/webm" });
   const formData = new FormData();
   formData.append("video", blob, "recording.webm");
+  if (window.currentMaskType) {
+    formData.append("mask", window.currentMaskType);
+  }
 
   fetch(`${BACKEND_URL}/process-inline`, {
     method: "POST",
@@ -53,21 +58,18 @@ function uploadRecording() {
       return res.blob();
     })
     .then((blobResp) => {
-      // Ensure the blob has a proper MIME type so the video element
-      // knows how to decode it (some servers omit the header).
       const mp4Blob = new Blob([blobResp], { type: "video/mp4" });
-      // Revoke any previous object URL to avoid memory leaks.
-      if (processedVideo.src && processedVideo.src.startsWith("blob:")) {
-        URL.revokeObjectURL(processedVideo.src);
-      }
       const url = URL.createObjectURL(mp4Blob);
-      processedVideo.src = url;
-      processedVideo.load();
-      processedVideo.play();
+      recordVideoEl.srcObject = null;
+      recordVideoEl.src = url;
+      recordVideoEl.load();
+      recordVideoEl.play();
+      spinner.classList.add("hidden");
     })
     .catch((err) => {
       console.error(err);
       alert("Upload failed");
+      spinner.classList.add("hidden");
     });
 }
 

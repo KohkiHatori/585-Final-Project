@@ -1,96 +1,108 @@
-# 585-Final-Project
-# 🕶️ Real-Time Funny Mask Overlay (CS585 Final Project)
+# Face-Filter Web App  
+Bring Snapchat-style AR masks to any modern browser
 
-**Team Members:** Aleksei Glebov, Brooks Wimer, Bora Aydemir, Kohki Hatori
+---
 
-## 📌 Project Overview
+## What It Does
 
-This project delivers a **web-based application** that allows users to:
+1. **Live Preview (client-only)**  
+   Uses MediaPipe Face Mesh (WebAssembly) to track 468 landmarks at ~30 fps and draws the selected PNG mask on a `<canvas>` overlay.
+2. **Record → Upload → Process**  
+   – Captures a raw WebM from the webcam with `MediaRecorder`.  
+   – Sends it plus the chosen mask name to a Flask backend.  
+   – Backend applies the mask **offline** frame-by-frame with OpenCV/PyTorch and returns a standards-compliant MP4.  
+   – Result immediately plays in the same video frame.
 
-- Record video directly from their webcam
-- Detect and track their face in real-time
-- Apply funny or cartoon-style masks (e.g., sunglasses, animal noses)
-- Save and download the processed video
+---
 
-Our goal is to create an accessible, browser-native Augmented Reality (AR) experience using a mix of traditional computer vision and modern deep learning techniques.
+## Repo Layout
 
-## 🎯 Motivation
+```
+│  index.html          # Single-page frontend UI
+│  styles.css          # Responsive styling + spinner animation
+│  camera.js           # Starts/ stops webcam
+│  faceDetection.js    # MediaPipe setup & landmark stream
+│  maskHandler.js      # Draws PNG masks based on landmarks
+│  recorder.js         # Handles recording, spinner, upload, playback
+│  masks/              # PNG assets (cat.png, bear.png, …)
+│
+├─ backend/
+│   ├─ app.py              # Flask server, CORS, endpoints
+│   └─ overlay_processor.py# Heavy video post-processing
+│
+└─ README.md         
+```
 
-AR filters are wildly popular across social media platforms, but most existing solutions are mobile app–centric. We aim to provide a **lightweight, browser-based alternative** that works in real time and requires no installation.
+---
 
-## 🛠️ Features & Architecture
+## Quick Start (Local Dev)
 
-### 🔵 Frontend (In-Browser)
+1. Clone & enter the project
+```bash
+git clone https://github.com/KohkiHatori/585-Final-Project.git
+cd face-filter-app
+```
+2. Start the backend (Python 3.9+)
+```bash
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt                     # Flask, opencv-python, mediapipe, etc.
+python backend/app.py                               # runs on http://localhost:5000
+```
+3. Serve the static frontend (any simple server)
+```bash
+# from repo root
+python -m http.server 8080  # or use Live Server extension, nginx, etc.
+```
+4. Visit `http://localhost:8080` in Chrome/Edge/Firefox, allow camera access, and play
 
-- **Web Technologies:** HTML, CSS, JavaScript
-- **Camera Input:** `getUserMedia()` and `MediaRecorder` for webcam capture and recording
-- **Real-Time Processing:** Lightweight face detection and landmarking with:
-  - OpenCV (via WASM)
-  - Dlib HOG
-  - [MediaPipe Face Mesh](https://google.github.io/mediapipe/solutions/face_mesh.html)
-- **Overlay Rendering:** Funny masks (PNG/SVG) anchored using facial landmarks and transformed with affine warping
 
-### 🔴 Backend (Optional)
 
-- **Tech Stack:** Python (Flask or FastAPI)
-- **Usage:** Fallback for heavier video processing, or post-recording enhancements
-- **Libraries:** OpenCV, MediaPipe
+---
 
-## 👾 Mask Examples
+## How It Works
 
-- Googly Eyes
-- Sunglasses
-- Bunny Ears
-- Animal Noses
+### 1. Frontend Pipeline
 
-## Face Filter Implementation
+```
+WebCam → getUserMedia() → <video> → MediaPipe Face Mesh (WebAssembly) → Landmark pts → maskHandler.js → <canvas> overlay
+```
 
-This project implements a real-time face filter application using MediaPipe Face Mesh for face detection and JavaScript for mask overlay. The application allows users to add various masks that automatically align with facial features.
+* `faceDetection.js` sets up MediaPipe; each callback delivers an array of 468 `x,y` coords.
+* `maskHandler.js` picks key points (eyes, nose, forehead) to compute scale/rotation, then draws a pre-loaded transparent PNG (`masks/*.png`).
+* All work happens in the browser thread; no frames leave the client during live preview.
 
-### Features
+### 2. Recording & Offline Processing
 
-- Real-time face detection using MediaPipe Face Mesh
-- Multiple mask options (bear, cat, and custom masks)
-- Automatic mask alignment with facial features
-- Responsive design that works with different camera resolutions
+1. **Start Recording** – `MediaRecorder` encodes VP8 WebM directly from the raw webcam stream (no mask).  
+2. **Stop & Upload** – We POST `FormData` containing:  
+   • `video`: *recording.webm*  
+   • `mask`: *cat* | *bear* | …  
+   Frontend shows a CSS spinner overlay while waiting.
+3. **Flask Endpoint `/process-inline`**
+   1. Converts WebM → temp MP4 (ffmpeg) for OpenCV compatibility.
+   2. Calls `overlay_processor.py`:
+      * loads PyTorch landmark model, iterates frames, blends selected mask PNG.
+   3. Transcodes result to H.264 MP4 for browser playback.
+   4. Sends binary MP4 back (`Content-Type: video/mp4`).
+4. **Playback** – `recorder.js` swaps the `recordVideo` element's `src` with the returned Blob URL and hides the spinner.
 
-### Files
+### 3. Adding New Masks
 
-- `index.html` - Main HTML file containing the application structure
-- `styles.css` - CSS styles for the application
-- `faceDetection.js` - Handles face detection using MediaPipe Face Mesh
-- `maskHandler.js` - Manages mask overlay and positioning
-- `camera.js` - Camera initialization and management
-- `masks/` - Directory containing mask image files
+1. Drop a transparency-aware PNG (same aspect as face) into `masks/` e.g. `tiger.png`.
+2. Add a thumbnail to HTML:
+```html
+<div class="mask-option" data-mask="tiger">
+  <img src="masks/tiger.png" alt="Tiger">
+  <span>Tiger</span>
+</div>
+```
+3. No code change needed on backend; it trusts the file exists.
 
-### Setup
 
-1. Clone the repository
-2. Ensure you have a web server running (you can use Python's `http.server` or any other local server)
-3. Open the application in a modern web browser
-4. Allow camera access when prompted
 
-### Usage
 
-1. The application will automatically start your camera and begin face detection
-2. Select different masks using the buttons provided
-3. The mask will automatically align with your face, positioning the ears and nose appropriately
 
-### Technical Details
 
-The face filter uses several key components:
 
-- MediaPipe Face Mesh for accurate facial landmark detection
-- Canvas API for drawing masks and video frames
-- Custom positioning algorithm that aligns mask features with facial landmarks
 
-The mask positioning algorithm uses the following key points:
-- Eye positions for horizontal alignment and scaling
-- Nose position for vertical alignment
-- Additional facial landmarks for precise positioning
 
-### Dependencies
-
-- MediaPipe Face Mesh
-- Modern web browser with WebGL support
-- Camera access

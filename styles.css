@@ -39,6 +39,13 @@ h2 {
     transform: none !important; /* ensure video itself stays unflipped */
 }
 
+#recordVideo {
+    width: 100%;
+    background-color: #000;
+    border-radius: 8px;
+    transform: none !important;
+}
+
 #outputCanvas {
     position: absolute;
     top: 0;
@@ -53,6 +60,29 @@ h2 {
     gap: 10px;
     justify-content: center;
     margin-bottom: 20px;
+}
+
+.spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 60px;
+    height: 60px;
+    margin: -30px 0 0 -30px; /* center */
+    border: 6px solid #ccc;
+    border-top-color: #1a73e8;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    z-index: 10;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.hidden {
+    display: none !important;
 }
 
 button {
