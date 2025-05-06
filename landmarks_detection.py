@@ -35,7 +35,7 @@ def save_annotations():
 
 
 # --- MAIN ---
-image_files = sorted([f for f in os.listdir(FACES_DIR) if f.endswith(('.jpg', '.png'))])
+image_files = sorted([f for f in os.listdir(FACES_DIR) if f.endswith(('.jpg', '.png', '.jpeg'))])
 cv2.namedWindow("Image")
 cv2.setMouseCallback("Image", mouse_callback)
 
