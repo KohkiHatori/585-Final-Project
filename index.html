@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Filter App</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+    <script src="camera.js"></script>
+    <script src="faceDetection.js"></script>
+    <script src="maskHandler.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Face Filter App</h1>
+        <div class="video-container">
+            <video id="videoElement" autoplay playsinline></video>
+            <canvas id="outputCanvas"></canvas>
+        </div>
+        <div class="controls">
+            <button id="startButton">Start Camera</button>
+            <button id="stopButton" disabled>Stop Camera</button>
+            
+            <button id="recStart" disabled>Start Recording</button>
+            <button id="recStop" disabled>Stop & Upload</button>
+        </div>
+        <div class="mask-selection">
+            <h2>Select an Animal Mask</h2>
+            <div class="mask-grid">
+                <div class="mask-option" data-mask="bear">
+                    <img src="masks/bear.png" alt="Bear">
+                    <span>Bear</span>
+                </div>
+                <div class="mask-option" data-mask="cat">
+                    <img src="masks/cat.png" alt="Cat">
+                    <span>Cat</span>
+                </div>
+                <div class="mask-option" data-mask="custom1">
+                    <img src="masks/custom1.png" alt="Custom 1">
+                    <span>Custom 1</span>
+                </div>
+                <div class="mask-option" data-mask="custom2">
+                    <img src="masks/custom2.png" alt="Custom 2">
+                    <span>Custom 2</span>
+                </div>
+            </div>
+        </div>
+        <h3>Processed video:</h3>
+        <video id="processedVideo" controls style="max-width: 100%;"></video>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const videoElement = document.getElementById('videoElement');
+            const canvasElement = document.getElementById('outputCanvas');
+            const startButton = document.getElementById('startButton');
+            const stopButton = document.getElementById('stopButton');
+
+            const cameraHandler = new CameraHandler(videoElement, startButton, stopButton);
+            const faceDetector = new FaceDetector(videoElement, canvasElement);
+            const maskHandler = new MaskHandler(canvasElement);
+
+            // Connect face detector to mask handler
+            faceDetector.onFaceDetected = (landmarks) => {
+                maskHandler.updateMaskPosition(landmarks);
+            };
+
+            startButton.addEventListener('click', async () => {
+                const success = await cameraHandler.startCamera();
+                if (success) {
+                    await faceDetector.initialize();
+                    faceDetector.start();
+                }
+            });
+
+            stopButton.addEventListener('click', () => {
+                cameraHandler.stopCamera();
+                faceDetector.stop();
+            });
+
+            // Handle mask selection
+            document.querySelectorAll('.mask-option').forEach(option => {
+                option.addEventListener('click', () => {
+                    const maskType = option.dataset.mask;
+                    maskHandler.setMask(maskType);
+                });
+            });
+        });
+    </script>
+    <script src="recorder.js"></script>
+</body>
+</html> 
