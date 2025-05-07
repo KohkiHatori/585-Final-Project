@@ -3,12 +3,11 @@ import os
 import random
 import numpy as np
 
-# --- CONFIG ---
 DIR = "detected_faces"
-ANGLE_RANGE = (-90, 90)  # Random angles
+ANGLE_RANGE = (-90, 90)  # Random angles.
 SUFFIX = "_rotated"
 
-# --- AUGMENTATION ---
+# Image rotation.
 def rotate_image(image, angle):
     (h, w) = image.shape[:2]
     center = (w // 2, h // 2)
@@ -16,7 +15,6 @@ def rotate_image(image, angle):
     rotated = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
     return rotated
 
-# --- MAIN ---
 image_files = [f for f in os.listdir(DIR) if f.endswith(('.jpg', '.png')) and SUFFIX not in f]
 print(f"Found {len(image_files)} images.")
 
@@ -31,5 +29,3 @@ for fname in image_files:
     out_path = os.path.join(DIR, new_name)
     cv2.imwrite(out_path, rotated)
     print(f"Saved {new_name} (angle: {angle:.2f}°)")
-
-print("Done augmenting with rotation.")
