@@ -2,7 +2,6 @@ import cv2
 import os
 import json
 
-# Configuration.
 FACES_DIR = "detected_faces"
 OUTPUT_FILE = "landmarks.json"
 TARGET_POINTS = ["left_eye", "right_eye", "nose", "mouth_left", "mouth_right"]
